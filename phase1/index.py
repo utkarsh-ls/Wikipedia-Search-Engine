@@ -1,10 +1,11 @@
 import os
 import heapq
+import numpy
 
 INDEX_BLOCK_SIZE = 1000000
 DOC_BLOCK_SIZE = 1000
 MERGED_BLOCK_SIZE = 10000
-MAX_POSTING_LIST_SIZE = 10000
+MAX_POSTING_LIST_SIZE = 50000
 
 STATS_FILE = 'stats.txt'
 
@@ -12,13 +13,14 @@ STATS_FILE = 'stats.txt'
 
 
 class InvertedIndex():
-    def __init__(self, dirname):
+    def __init__(self, dirname, stats):
         self.dir = dirname
         if self.dir[-1] != '/':
             self.dir += '/'
         if not os.path.exists(self.dir):
             os.makedirs(self.dir)
 
+        self.stats_file = stats
         self.doc_block_id = 0
         self.index_block_id = 0
         self.merged_index_id = 0
@@ -35,7 +37,8 @@ class InvertedIndex():
         self.total = {
             'token': 0,
             'doc': 0,
-            'block': 0
+            'block': 0,
+            'merged_token': 0
         }
 
     def getDocBlockName(self, id=-1):
@@ -60,7 +63,7 @@ class InvertedIndex():
         return name
 
     def addWord(self, token, docid, TF, tags):
-        post = str(docid)+':'+str(TF)+':'+tags
+        post = numpy.base_repr(docid, 36)+':'+numpy.base_repr(TF, 36)+':'+tags
         if token in self.index:
             self.index[token].append(post)
         else:
@@ -98,8 +101,7 @@ class InvertedIndex():
         file_path = os.path.join(self.dir, name)
         with open(file_path, 'w') as f:
             for key, value in sorted(self.doc_map.items()):
-                token = str(key)+value
-                token = ';'.join(token)
+                token = numpy.base_repr(key, 36)+';'+value
                 f.write(str(token)+'\n')
         self.createNewDocBlock()
 
@@ -125,23 +127,21 @@ class InvertedIndex():
         entries = []
         for fd in file_iters:
             line = fd.readline()
-            while line:
-                words = line.strip().split(';')
-                title = words[0]
-                pl_size = len(words)
-                if pl_size > MAX_POSTING_LIST_SIZE:
-                    entry = [title]
-                    for w in words[1:]:
-                        _, tf, tags = w.split(':')
-                        if int(tf) > 1:
-                            entry.append(w)
-                        elif tags:
-                            entry.append(w)
-                else:
-                    entry = words
-                entries.append(entry)
-                heapq.heappush(heap, title)
-                line = fd.readline()
+            words = line.strip().split(';')
+            title = words[0]
+            pl_size = len(words)
+            if pl_size > MAX_POSTING_LIST_SIZE:
+                entry = [title]
+                for w in words[1:]:
+                    _, tf, tags = w.split(':')
+                    if int(tf) > 1:
+                        entry.append(w)
+                    elif tags:
+                        entry.append(w)
+            else:
+                entry = words
+            entries.append(entry)
+            heapq.heappush(heap, title)
 
         token_count_merged_index = 0
         while not done:
@@ -162,10 +162,12 @@ class InvertedIndex():
 
             self.merged_index[front] = []
             token_count_merged_index += 1
+            self.total['merged_token']+=1
 
             file_touched = False
 
-            for words in entries:
+            for i in range(len(entries)):
+                words = entries[i]
                 if words[0] == front:
                     file_touched = True
 
@@ -228,13 +230,7 @@ class InvertedIndex():
         #     file_path = os.path.join(self.dir, name)
         #     os.remove(file_path)
 
-        # generate stat file for implementation of BM-25
-        stat_file = os.path.join(self.dir, STATS_FILE)
-        with open(stat_file, "w+") as f:
-            f.write("NUM_DOCS=" + str(self.total['doc']) + '\n')
-            f.write("TOKEN_COUNT=" + str(self.total['token']) + '\n')
-            f.write("BLOCKS_CREATED=" + str(self.total['block']) + '\n')
-            f.write("MERGED_BLOCKS_CREATED=" + str(self.merged_index_id) + '\n')
-            f.write("DOC_BLOCKS_CREATED=" + str(self.doc_block_id) + '\n')
-
-        
+        # generate stat file
+        with open(self.stats_file, "w+") as f:
+            f.write(str(self.total['token'])+'\n')
+            f.write(str(self.total['merged_token'])+'\n')

@@ -1,3 +1,4 @@
+import sys
 import xml.sax
 import re
 import json
@@ -6,13 +7,10 @@ import os
 
 import index
 
-file = './data/enwiki-20220720-pages-articles-multistream15.xml-p15824603p17324602'
-temp_file = './data/temp.xml'
-
 
 class MyHandler(xml.sax.handler.ContentHandler):
 
-    def __init__(self, path='./index/', save=False):
+    def __init__(self, stats, path='./index/', save=False):
         # create an XMLReader
         self.parser = xml.sax.make_parser()
         # turn off namepsaces
@@ -23,7 +21,7 @@ class MyHandler(xml.sax.handler.ContentHandler):
         self.save = save
         
         self.index_path = path
-        self.index = index.InvertedIndex(self.index_path)
+        self.index = index.InvertedIndex(self.index_path, stats)
 
         self.current = {
             'doc_id': 0,
@@ -42,7 +40,9 @@ class MyHandler(xml.sax.handler.ContentHandler):
                                   'namespaces',
                                   'namespace']
 
-        # stemmer
+        # lemmatizer
+        # self.lemmatizer = WordNetLemmatizer()
+        # Stemmer
         self.stemmer = Stemmer.Stemmer('english')
         # stopwords
         self.stopwords = set(stopwords.words('english'))
@@ -56,8 +56,12 @@ class MyHandler(xml.sax.handler.ContentHandler):
         self.links_regex = re.compile(r"(https?://\S+)")
         self.references_regex = re.compile(r"\{\{cite(.*?)\}\}")
         self.token_regex = re.compile(r"[^a-zA-Z0-9]+")
-        # self.ignore_regex = re.compile(r"[0-9]+[a-zA-z]+[a-zA-z0-9]+")
-        self.num_regex = re.compile(r"[0-9]+.{4,}")
+        self.ignore_regex = [
+            re.compile(r"[0-9]+[a-zA-z]+"),
+            re.compile(r"[a-zA-z]+[0-9]+"),
+            re.compile(r"[0-9]+.{4,}"),
+            re.compile(r"[a-zA-z]+[0-9]+.{4,}")
+        ]
         # self.reference_regex = re.compile(r"=+references=+|=+notes=+|=+footnotes=+")
 
         # Total tokens
@@ -99,7 +103,7 @@ class MyHandler(xml.sax.handler.ContentHandler):
         # Set token count for BM-25
         self.index.cleanup(self.tot_tokens)
 
-    # Remove stopwords and/or perform stemming
+    # Remove stopwords and/or perform stemming+cleaning
     def tokenizer(self, text, remove_stopwords=True, do_stemming=True):
         text = set(text)
 
@@ -116,7 +120,17 @@ class MyHandler(xml.sax.handler.ContentHandler):
             elif self.links_regex.match(tok):
                 tokens.append(tok)
                 continue
-            tokens.append(self.stemmer.stemWord(tok))
+
+            # Cleaning
+            # token = str(self.lemmatizer.lemmatize(tok))
+            token = str(self.stemmer.stemWord(tok))
+            to_continue=False
+            for ig in self.ignore_regex:
+                if ig.match(token):
+                    to_continue=True
+            if to_continue is True:
+                continue
+            tokens.append(token)
 
         return tokens
 
@@ -138,13 +152,10 @@ class MyHandler(xml.sax.handler.ContentHandler):
                         self.pl[_tok] += tag
                 else:
                     try:
-                        if not self.num_regex.match(_tok):
-                            self.pl[_tok] = '1:' + tag
+                        self.pl[_tok] = '1:' + tag
                     except Exception as e:
-                        print(tag)
-                        print(_tok)
-                        print(e)
-                        exit(1)
+                        print('LOG ERROR(add_tags): ',e)
+                        pass
 
     # Indexing of parsed content
     def indexer(self):
@@ -161,19 +172,11 @@ class MyHandler(xml.sax.handler.ContentHandler):
         self.current['tokens'] += len(content_tokens)
         self.tot_tokens += len(content_tokens)
 
-        num_ignored_tokens = 0
         for tok in content_tokens:
-            # Ignore tokens starting with a number, len>=5
-            if self.num_regex.match(tok):
-                num_ignored_tokens += 1
-                continue
-
             if tok in self.pl:
                 self.pl[tok] += 1
             else:
                 self.pl[tok] = 1
-        self.current['tokens'] -= num_ignored_tokens
-        self.tot_tokens -= num_ignored_tokens
 
         for tok in self.pl:
             self.pl[tok] = str(self.pl[tok]) + ':'
@@ -244,7 +247,6 @@ class MyHandler(xml.sax.handler.ContentHandler):
         # print(self.current['content'])
         # print()
         # print(self.pl)
-
         self.index.addDoc(self.current['doc_id'],
                            self.current['title'].strip(), self.current['tokens'])
 
@@ -252,14 +254,18 @@ class MyHandler(xml.sax.handler.ContentHandler):
             fields = self.pl[tok].split(':')
             self.index.addWord(tok, self.current['doc_id'],
                                 int(fields[0]), fields[1])
-
+        
 
 if __name__ == "__main__":
     subprocess.run(['python3', 'initializer.py'])
     from nltk.corpus import stopwords
+    # from nltk.stem import WordNetLemmatizer
     import Stemmer
 
-    handler = MyHandler()
-    handler.parse(file)
+    dump_file = sys.argv[1]
+    index_fold_path = sys.argv[2]
+    stat_file = sys.argv[3]
+    handler = MyHandler(path=index_fold_path, stats=stat_file)
+    handler.parse(dump_file)
     # BUG: Uncomment this ↓ later
     handler.finish_indexing()
