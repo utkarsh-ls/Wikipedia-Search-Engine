@@ -1,1 +1,3 @@
-python3 parser.py $1 $2 $3
+date
+python3 parser.py $1 $2
+date

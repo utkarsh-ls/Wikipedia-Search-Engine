@@ -1,1 +1,1 @@
-python3 search.py $1 "${*:2}"
+python3 search.py $1 $2

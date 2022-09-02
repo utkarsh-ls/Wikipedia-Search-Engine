@@ -1,0 +1,3 @@
+Index Size:		297M
+No. of files:	129
+No. of tokens:	1283259

@@ -1,2 +1,6 @@
 /data/
 /index*/
+/secondary/
+/doc/
+Pipfile.lock
+**__pycache__**

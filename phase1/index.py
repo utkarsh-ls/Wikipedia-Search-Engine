@@ -1,6 +1,7 @@
 import os
 import heapq
 import numpy
+import subprocess
 
 INDEX_BLOCK_SIZE = 1000000
 DOC_BLOCK_SIZE = 1000
@@ -13,14 +14,29 @@ STATS_FILE = 'stats.txt'
 
 
 class InvertedIndex():
-    def __init__(self, dirname, stats):
+    def __init__(self, dirname):
         self.dir = dirname
         if self.dir[-1] != '/':
             self.dir += '/'
         if not os.path.exists(self.dir):
             os.makedirs(self.dir)
 
-        self.stats_file = stats
+        # Directory for document id-title mapping
+        self.doc_dir = './doc/'
+        if not os.path.exists(self.doc_dir):
+            os.makedirs(self.doc_dir)
+
+        # Directory for secondary index
+        self.sec_dir = './secondary/'
+        if not os.path.exists(self.sec_dir):
+            os.makedirs(self.sec_dir)
+        
+        # Filename for secondary file index
+        self.sec_file_path = os.path.join(self.sec_dir, 'secondary.txt')
+        if os.path.exists(self.sec_file_path):
+            os.remove(self.sec_file_path)
+        
+        self.stats_file = STATS_FILE
         self.doc_block_id = 0
         self.index_block_id = 0
         self.merged_index_id = 0
@@ -43,7 +59,7 @@ class InvertedIndex():
 
     def getDocBlockName(self, id=-1):
         if id == -1:
-            name = 'doc' + str(self.doc_block_id).zfill(4)
+            name = 'doc' + str(self.doc_block_id).zfill(6)
         else:
             name = 'doc' + str(id).zfill(4)
         return name
@@ -77,8 +93,9 @@ class InvertedIndex():
     def dumpIndexBlock(self):
         name = self.getIndBlockName()
         file_path = os.path.join(self.dir, name)
+        sorted_index = sorted(self.index.items())
         with open(file_path, 'w') as f:
-            for key, value in sorted(self.index.items()):
+            for key, value in sorted_index:
                 token = [key]+value
                 token = ';'.join(token)
                 f.write(str(token)+'\n')
@@ -98,9 +115,10 @@ class InvertedIndex():
 
     def dumpDocBlock(self):
         name = self.getDocBlockName()
-        file_path = os.path.join(self.dir, name)
+        file_path = os.path.join(self.doc_dir, name)
+        sorted_doc_map = sorted(self.doc_map.items())
         with open(file_path, 'w') as f:
-            for key, value in sorted(self.doc_map.items()):
+            for key, value in sorted_doc_map:
                 token = numpy.base_repr(key, 36)+';'+value
                 f.write(str(token)+'\n')
         self.createNewDocBlock()
@@ -130,7 +148,7 @@ class InvertedIndex():
             words = line.strip().split(';')
             title = words[0]
             pl_size = len(words)
-            if pl_size > MAX_POSTING_LIST_SIZE:
+            if pl_size >= MAX_POSTING_LIST_SIZE:
                 entry = [title]
                 for w in words[1:]:
                     _, tf, tags = w.split(':')
@@ -151,7 +169,7 @@ class InvertedIndex():
             try:
                 front = heapq.heappop(heap)
             except:
-                print("Finished indexing -------------------")
+                # print("Finished indexing -------------------")
                 for i in file_iters:
                     if i:
                         i.close()
@@ -171,7 +189,7 @@ class InvertedIndex():
                 if words[0] == front:
                     file_touched = True
 
-                    if len(words[1:]) > MAX_POSTING_LIST_SIZE:
+                    if len(words[1:]) >= MAX_POSTING_LIST_SIZE:
                         for w in words[1:]:
                             _, tf, tags = w.split(':')
                             if int(tf) > 1:
@@ -188,8 +206,8 @@ class InvertedIndex():
                         except:
                             pass
 
-            if token_count_merged_index > MERGED_BLOCK_SIZE:
-                print('Dumping tokens -------------------')
+            if token_count_merged_index >= MERGED_BLOCK_SIZE:
+                # print('Dumping tokens -------------------')
                 self.dumpMergedIndexBlock()
                 token_count_merged_index = 0
 
@@ -202,13 +220,22 @@ class InvertedIndex():
 
     def dumpMergedIndexBlock(self):
         name = self.getMergedIndName()
+        # Save merged index in 'ind******' file
         file_path = os.path.join(self.dir, name)
+        sorted_index = sorted(self.merged_index.items())
+        start_token = sorted_index[0][0].split(';')[0]
         with open(file_path, 'w') as f:
-            for key, value in sorted(self.merged_index.items()):
+            for key, value in sorted_index:
                 token = [key]+value
                 token = ';'.join(token)
                 f.write(str(token)+'\n')
         self.createNewMergedIndexBlock()
+
+        # Save secondary index
+        with open(self.sec_file_path, 'a') as f:
+            s_index = [name]+[start_token]
+            s_index = ';'.join(s_index)
+            f.write(str(s_index)+'\n')
 
     def createNewMergedIndexBlock(self):
         self.merged_index_id += 1
@@ -224,13 +251,18 @@ class InvertedIndex():
         # Dump remaining merged indexes
         self.dumpMergedIndexBlock()
 
-        # for block in range(self.total['block']):
-        #     # Remove all blocks
-        #     name = self.getIndBlockName(block)
-        #     file_path = os.path.join(self.dir, name)
-        #     os.remove(file_path)
+        for block in range(self.total['block']):
+            # Remove all blocks
+            name = self.getIndBlockName(block)
+            file_path = os.path.join(self.dir, name)
+            os.remove(file_path)
 
         # generate stat file
         with open(self.stats_file, "w+") as f:
-            f.write(str(self.total['token'])+'\n')
-            f.write(str(self.total['merged_token'])+'\n')
+            files = self.dir+'ind*'
+            size = subprocess.run([f'du -csh {files}'], shell=True, capture_output=True, text=True).stdout.split('\t')[-2].split('\n')[-1]
+            files = str(self.merged_index_id)
+            tokens = str(self.total['merged_token'])
+            f.write(f'Index Size:\t\t{size}\n')
+            f.write(f'No. of files:\t{files}\n')
+            f.write(f'No. of tokens:\t{tokens}\n')

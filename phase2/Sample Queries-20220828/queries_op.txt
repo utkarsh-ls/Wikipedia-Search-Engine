@@ -1,0 +1,107 @@
+5478925, billie jean
+124575, michael jackson
+8521244, moonwalk (dance)
+874562, thriller
+2347851, billie jean king
+4125673, beat it
+3457416, the legend of billie jean
+5214768, the jackson 5
+4123487, jackson family
+2345176, quincy jones
+0.029521942138671875
+
+1504473, moon knight
+6147139, captain marvel (dc comics)
+2986476, namor
+3047541, spider-man
+2904513, daredevil (marvel comics character)
+3765699, x-men
+5848007, star wars comics
+3765698, x-factor (comics)
+6229396, the tomb of dracula
+3008303, avengers (comics)
+2.721574306488037
+
+1801053, allan rune pettersson
+6013268, allan pettersson
+1468994, runes
+3035183, edgar allan poe
+4418956, symphony no. 9 (pettersson)
+1210054, wikipedia:wikiproject red link recovery/exceptions
+3027877, hugh allan
+5937622, allan quatermain
+651947, göta pettersson
+5185362, edgar allan poe cottage
+1.8582854270935059
+
+2534857, angus maclean
+3046089, robert e. lee
+2969329, angus cattle
+2985796, montrose, angus
+6234404, earl of angus
+7905567, angus
+3764146, tori amos
+2985016, james vi and i
+9196607, wikipedia:wikiproject deletion sorting/england/archive
+9211764, wikipedia:wikiproject deletion sorting/actors and filmmakers/archive
+2.9251763820648193
+
+6233035, uss conolly
+6161597, list of destroyers of the united states navy
+1418604, list of auxiliaries of the united states navy
+8158386, 1967 uss forrestal fire
+7662930, list of united states navy lsts
+5697164, list of united states navy landing craft infantry (lci)
+3498978, uss nimitz
+1394305, uss arizona memorial
+9109216, edward michael conolly
+7151515, template:sc-497 class submarine chaser
+0.10456657409667969
+
+3048038, speed of light
+7587686, wikipedia:reference desk/archives/science/january 2006
+3308441, wikipedia:reference desk/archives/science/april 2006
+3799348, zero-point energy
+3186898, wikipedia:reference desk/archives/science/march 2006
+7395430, wikipedia:reference desk/archives/science/november 2005
+7481495, wikipedia:reference desk/archives/science/december 2005
+3046875, special relativity
+8515269, wikipedia:reference desk/archives/science/september 2005
+9224080, wikipedia:wikiproject deletion sorting/science/archive
+2.4732110500335693
+
+3935994, the capture (film)
+7599923, carbon capture and storage
+7396889, hurricane dog (1950)
+3494232, 1950 british empire games
+3776395, battle of chosin reservoir
+9687931, 1950 giro d'italia
+4691430, battle of chongju (1950)
+1593621, list of giant squid specimens and sightings
+9093219, template:1950–51 in english football
+7348011, 1950–51 boston bruins season
+0.95827317237854
+
+3578758, tom birdseye
+6097706, clarence birdseye
+2888176, tarantula
+3006073, tarantula nebula
+3344360, tarantula!
+7607837, tarantula (marvel comics)
+3240683, black tarantula
+959574, tarantula (the smashing pumpkins song)
+6282287, tarantula (dc comics)
+3056352, tarantula (disambiguation)
+0.029521942138671875
+
+4512364, independence day (united states)
+3742937, july 4
+1273837, 1776
+837292, 1776 in the united states
+1892938, committee of five
+2836263, signing of the united states declaration of independence
+2817322, history of the united states (1776–1789)
+1283731, 1776 (musical)
+7382292, list of continental army units (1776)
+1837327, cartography of the united states
+2.034419821008413971

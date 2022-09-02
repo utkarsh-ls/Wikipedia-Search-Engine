@@ -10,7 +10,7 @@ import index
 
 class MyHandler(xml.sax.handler.ContentHandler):
 
-    def __init__(self, stats, path='./index/', save=False):
+    def __init__(self, path='./index/', save=False):
         # create an XMLReader
         self.parser = xml.sax.make_parser()
         # turn off namepsaces
@@ -19,9 +19,9 @@ class MyHandler(xml.sax.handler.ContentHandler):
         self.parser.setContentHandler(self)
         # HACK
         self.save = save
-        
+
         self.index_path = path
-        self.index = index.InvertedIndex(self.index_path, stats)
+        self.index = index.InvertedIndex(self.index_path)
 
         self.current = {
             'doc_id': 0,
@@ -40,7 +40,18 @@ class MyHandler(xml.sax.handler.ContentHandler):
                                   'namespaces',
                                   'namespace']
 
-        # lemmatizer
+        self.wiki_namespaces = ['user',
+                                'wikipedia',
+                                'file',
+                                'mediaWiki',
+                                'template',
+                                'help',
+                                'category',
+                                'portal',
+                                'draft',
+                                'timedText',
+                                'module']
+        # Lemmatizer
         # self.lemmatizer = WordNetLemmatizer()
         # Stemmer
         self.stemmer = Stemmer.Stemmer('english')
@@ -55,13 +66,23 @@ class MyHandler(xml.sax.handler.ContentHandler):
         self.infobox_regex = re.compile(r"{{infobox((.|\n)*)}}\n")
         self.links_regex = re.compile(r"(https?://\S+)")
         self.references_regex = re.compile(r"\{\{cite(.*?)\}\}")
-        self.token_regex = re.compile(r"[^a-zA-Z0-9]+")
+        self.token_regex = re.compile(r"[^a-z0-9]+")
         self.ignore_regex = [
-            re.compile(r"[0-9]+[a-zA-z]+"),
-            re.compile(r"[a-zA-z]+[0-9]+"),
-            re.compile(r"[0-9]+.{4,}"),
-            re.compile(r"[a-zA-z]+[0-9]+.{4,}")
+            # Alphanumeric
+            re.compile(
+                r"\b((\w*[0-9]\w*)(\w*[a-z]\w*))|((\w*[a-z]\w*)(\w*[0-9]\w*))\b"),
+            # Numbers == 3 digits
+            re.compile(r"\b[0-9]{3}\b"),
+            # Numbers 4 digits, greater than 2022, less than 1000
+            re.compile(r"\b(?:0(?:[0-9]{3})|20[3-9][0-9]|202[3-9]|2[1-9][0-9]{2}|[3-9][0-9]{3})\b"),
+            # Numbers >= 5 digits
+            re.compile(r"\b[0-9]{5,}\b"),
+            # Letters = 1 char
+            re.compile(r"\b[a-z]{1}\b"),
+            # Letters >= 15 chars
+            re.compile(r"\b[a-z]{15,}\b")
         ]
+
         # self.reference_regex = re.compile(r"=+references=+|=+notes=+|=+footnotes=+")
 
         # Total tokens
@@ -89,18 +110,21 @@ class MyHandler(xml.sax.handler.ContentHandler):
     # Call when an elements ends
     def endElement(self, name):
         if name == 'page':
-            self.indexer()
-            self.current['tokens'] += 0
-            self.current['doc_id'] += 1
-            self.current['title'] = ''
-            self.current['content'] = ''
-            if self.save==True:
-                with open('posting_list.json', 'a+') as fd:
-                    json.dump(self.pl, fd)
-                    fd.write('\n')
+            if self.indexer() == True:
+                self.current['tokens'] = 0
+                self.current['doc_id'] += 1
+                self.current['title'] = ''
+                self.current['content'] = ''
+                if self.save == True:
+                    with open('posting_list.json', 'a+') as fd:
+                        json.dump(self.pl, fd)
+                        fd.write('\n')
+            else:
+                self.current['tokens'] = 0
+                self.current['title'] = ''
+                self.current['content'] = ''
 
     def finish_indexing(self):
-        # Set token count for BM-25
         self.index.cleanup(self.tot_tokens)
 
     # Remove stopwords and/or perform stemming+cleaning
@@ -109,9 +133,6 @@ class MyHandler(xml.sax.handler.ContentHandler):
 
         if remove_stopwords is True:
             text = text - self.stopwords
-        # print('=================================================')
-        # print(text)
-        # print('-------------------------------------------------')
         tokens = []
         for tok in text:
             if do_stemming is not True:
@@ -124,10 +145,10 @@ class MyHandler(xml.sax.handler.ContentHandler):
             # Cleaning
             # token = str(self.lemmatizer.lemmatize(tok))
             token = str(self.stemmer.stemWord(tok))
-            to_continue=False
+            to_continue = False
             for ig in self.ignore_regex:
                 if ig.match(token):
-                    to_continue=True
+                    to_continue = True
             if to_continue is True:
                 continue
             tokens.append(token)
@@ -154,14 +175,14 @@ class MyHandler(xml.sax.handler.ContentHandler):
                     try:
                         self.pl[_tok] = '1:' + tag
                     except Exception as e:
-                        print('LOG ERROR(add_tags): ',e)
+                        print('LOG ERROR(add_tags): ', e)
                         pass
 
     # Indexing of parsed content
     def indexer(self):
         self.pl = {}
-        
-        # create tokens for content
+
+        ### Create tokens for CONTENT
         # Add title thrice to increase TF
         data = self.current['content'] + (' '+self.current['title'].strip())*3
         format_data = set()
@@ -181,13 +202,17 @@ class MyHandler(xml.sax.handler.ContentHandler):
         for tok in self.pl:
             self.pl[tok] = str(self.pl[tok]) + ':'
 
-        # create tokens for title
+        ### Create tokens for TITLE
         data = self.current['title']
+        namespace = data.split(':')[0]
+        # Don't process if article is a Wiki namespace
+        if namespace in self.wiki_namespaces:
+            return False
         format_data = set()
         for tok in self.token_regex.split(data):
             if tok != '':
                 format_data.add(tok)
-        title_tokens = self.tokenizer(format_data, do_stemming=False)
+        title_tokens = self.tokenizer(format_data)
 
         for tok in title_tokens:
             if tok in self.pl:
@@ -195,7 +220,7 @@ class MyHandler(xml.sax.handler.ContentHandler):
             else:
                 self.pl[tok] = '1:t'
 
-        # parse infobox
+        ### Parse INFOBOX
         infobox = self.infobox_regex.findall(self.current['content'])
 
         # infoboxes can be recursive, so parse depth
@@ -219,42 +244,37 @@ class MyHandler(xml.sax.handler.ContentHandler):
                 continue
         self.add_tags(infobox_data, 'i')
 
-        # parse categories
+        ### Parse Categories
         categories = self.categories_regex.findall(self.current['content'])
         self.add_tags(categories, 'c')
 
-        # parse references
+        ### Parse References
         references = self.references_regex.findall(self.current['content'])
         self.add_tags(references, 'r')
 
-        # parse external links
+        ### Parse External Links
         content = self.external_regex.split(self.current['content'])
         links = []
         if len(content) > 1:
             content = content[1].split("\n")
             for l in content:
-                # print(l)
                 if l and l[0] == "*":
                     _links = self.links_regex.findall(l)
-                    # print("11111111111111111111111111111111111111111111111111111111111")
-                    # print(_links)
-                    # print("22222222222222222222222222222222222222222222222222222222222")
                     for link in _links:
                         links.append(link)
         # Don't tokenize links
         self.add_tags(links, 'l', tokenize=False)
 
-        # print(self.current['content'])
-        # print()
-        # print(self.pl)
         self.index.addDoc(self.current['doc_id'],
-                           self.current['title'].strip(), self.current['tokens'])
+                          self.current['title'].strip(), self.current['tokens'])
 
         for tok in self.pl:
             fields = self.pl[tok].split(':')
             self.index.addWord(tok, self.current['doc_id'],
-                                int(fields[0]), fields[1])
-        
+                               int(fields[0]), fields[1])
+
+        return True
+
 
 if __name__ == "__main__":
     subprocess.run(['python3', 'initializer.py'])
@@ -264,8 +284,7 @@ if __name__ == "__main__":
 
     dump_file = sys.argv[1]
     index_fold_path = sys.argv[2]
-    stat_file = sys.argv[3]
-    handler = MyHandler(path=index_fold_path, stats=stat_file)
+    handler = MyHandler(path=index_fold_path)
     handler.parse(dump_file)
     # BUG: Uncomment this ↓ later
     handler.finish_indexing()
